@@ -4,7 +4,7 @@ let daleIndex;
 for (let i = 0; i < 20; i++) {
     daleIndex = i % 10;
 
-    icosahedron.innerHTML += `<figure class="face" id="face${i}"><div class="content"><p>${i}</p><img src="dales/dale${daleIndex}.jpg"></div></figure>`;
+    icosahedron.innerHTML += `<figure class="face" id="face${i}" data-val=${i} onclick="clickFace(this)"><div class="content"><p>${i}</p><img src="dales/dale${daleIndex}.jpg"></div></figure>`;
 }
 
 const icosahedronFaces = {
@@ -30,9 +30,24 @@ const icosahedronFaces = {
     20: { x: 169.209, y: 324 },
 };
 
-let face;
-function displayFace(n) {
-    face = icosahedronFaces[n];
-    icosahedron.style.setProperty('--container-rotation-x', `${face['x']}`)
-    icosahedron.style.setProperty('--container-rotation-y', `${face['y']}`)
+// let face;
+// function displayFace(n) {
+//     face = icosahedronFaces[n];
+//     icosahedron.style.setProperty('--container-rotation-x', `${face['x']}`)
+//     icosahedron.style.setProperty('--container-rotation-y', `${face['y']}`)
+// }
+
+htmlFaces = document.querySelectorAll(".faces");
+daleNumber = document.querySelector("#daleNumber");
+
+let dales = 0;
+
+function updateDales() {
+    daleNumber.innerHTML = dales;
+}
+
+function clickFace(el) {
+    dales += parseInt(el.dataset.val);
+    console.log(dales)
+    updateDales();
 }
