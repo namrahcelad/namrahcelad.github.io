@@ -40,8 +40,9 @@ div.content {
     width: 100%;
 }
 
-#dales {
+.counter {
     position: static;
+    margin: 10px;
 }
 
 #scene {

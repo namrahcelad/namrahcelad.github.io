@@ -1,53 +1,88 @@
-let icosahedron = document.querySelector(".icosahedron");
-
-let daleIndex;
-for (let i = 0; i < 20; i++) {
-    daleIndex = i % 10;
-
-    icosahedron.innerHTML += `<figure class="face" id="face${i}" data-val=${i} onclick="clickFace(this)"><div class="content"><p>${i}</p><img src="dales/dale${daleIndex}.jpg"></div></figure>`;
+// Generate or get unique device ID
+let deviceId = localStorage.getItem("deviceId");
+if (!deviceId) {
+    deviceId = crypto.randomUUID(); // unique ID per browser/device
+    localStorage.setItem("deviceId", deviceId);
 }
 
-const icosahedronFaces = {
-    1: { x: -127.399, y: 0 },
-    2: { x: -127.399, y: 72 },
-    3: { x: -127.399, y: 144 },
-    4: { x: -127.399, y: 216 },
-    5: { x: -127.399, y: 288 },
-    6: { x: -10.791, y: 36 },
-    7: { x: -10.791, y: 108 },
-    8: { x: -10.791, y: 180 },
-    9: { x: -10.791, y: 252 },
-    10: { x: -10.791, y: 324 },
-    11: { x: 52.601, y: 0 },
-    12: { x: 52.601, y: 72 },
-    13: { x: 52.601, y: 144 },
-    14: { x: 52.601, y: 216 },
-    15: { x: 52.601, y: 288 },
-    16: { x: 169.209, y: 36 },
-    17: { x: 169.209, y: 108 },
-    18: { x: 169.209, y: 180 },
-    19: { x: 169.209, y: 252 },
-    20: { x: 169.209, y: 324 },
+let daleNumber = document.querySelector("#daleNumber");
+let globalDaleNumber = document.querySelector("#global-daleNumber");
+let dales = 0;
+let pendingDales = 0;
+
+// Load per-device dales from KV on page load
+async function loadLocalDales() {
+    try {
+        const res = await fetch(`https://dale-ws.240.workers.dev?device=${deviceId}`);
+        const data = await res.json();
+        dales = data.user || 0;
+        daleNumber.innerHTML = dales;
+    } catch (err) {
+        console.error("Failed to load local dales:", err);
+    }
+}
+
+// Connect WebSocket to Durable Object for global dales
+const ws = new WebSocket("wss://dale-ws.240.workers.dev/gdo");
+ws.onmessage = (event) => {
+    globalDaleNumber.innerHTML = event.data;
 };
 
-// let face;
-// function displayFace(n) {
-//     face = icosahedronFaces[n];
-//     icosahedron.style.setProperty('--container-rotation-x', `${face['x']}`)
-//     icosahedron.style.setProperty('--container-rotation-y', `${face['y']}`)
-// }
-
-htmlFaces = document.querySelectorAll(".faces");
-daleNumber = document.querySelector("#daleNumber");
-
-let dales = 0;
-
+// Update local display
 function updateDales() {
     daleNumber.innerHTML = dales;
 }
 
+// Handle click on dice faces
 function clickFace(el) {
-    dales += parseInt(el.dataset.val);
-    console.log(dales)
+    const value = parseInt(el.dataset.val);
+
+    // Update local display immediately
+    dales += value;
+    pendingDales += value;
     updateDales();
+
+    // Send increment to global counter via WebSocket
+    ws.send(value.toString());
 }
+
+// Send pending dales to KV every second
+setInterval(async () => {
+    if (pendingDales > 0) {
+        const sendValue = pendingDales;
+        pendingDales = 0;
+
+        try {
+            const res = await fetch(`https://dale-ws.240.workers.dev?device=${deviceId}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ add: sendValue })
+            });
+
+            if (!res.ok) {
+                console.error("Failed to sync dales:", await res.text());
+                pendingDales += sendValue; // retry next tick
+                return;
+            }
+
+            const data = await res.json();
+            dales = data.user; // sync local total with KV
+            updateDales();
+        } catch (err) {
+            console.error("Failed to sync dales to DB:", err);
+            pendingDales += sendValue; // retry next tick
+        }
+    }
+}, 1000);
+
+// Build dice faces
+let icosahedron = document.querySelector(".icosahedron");
+for (let i = 0; i < 20; i++) {
+    const daleIndex = i % 10;
+    icosahedron.innerHTML += `<figure class="face" id="face${i}" data-val=${i} onclick="clickFace(this)">
+        <div class="content"><p>${i}</p><img src="dales/dale${daleIndex}.jpg"></div>
+    </figure>`;
+}
+
+// Load local dales on page load
+window.addEventListener("load", loadLocalDales);
